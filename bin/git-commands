@@ -1,6 +1,5 @@
-#!/ms/dist/perl5/bin/perl5.8
+#!/usr/bin/perl -w
 use strict;
-use warnings;
 
 use File::Basename;
 use File::Path;
