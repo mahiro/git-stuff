@@ -1,0 +1,213 @@
+#!/ms/dist/perl5/bin/perl5.8
+use strict;
+use warnings;
+
+use File::Basename;
+use File::Path;
+use Getopt::Long;
+
+sub parse_args {
+	my $opt = {};
+
+	GetOptions $opt, qw(
+		complete
+		porcelain lowlevel all
+		shortoptions fulloptions options
+		man
+		recursive
+		help
+	) or die $!;
+
+	if ($opt->{help}) {
+		my $cmd = basename($0);
+
+		print <<END;
+Usage: $cmd [OPTIONS] 
+
+Print all git commands.
+
+Options:
+  -complete
+    Print all commands and options for shell completion.
+
+  -porcelain
+    Print high-level commands (default unless -lowlevel is on).
+
+  -lowlevel
+    Print low-level commands.
+
+  -all
+    Print both low-level and high-level commands.
+
+  -shortoptions
+    Print short options.
+
+  -fulloptions
+    Print long options.
+
+  -options
+    Print both short and long options.
+
+  -man
+    Print man targets instead of git subcommands.
+
+  -recursive
+    Recursively read all manuals for subcommands.
+
+  -help
+    Display help.
+END
+
+		exit 1;
+	}
+
+	if ($opt->{all}) {
+		$opt->{porcelain} = 1;
+		$opt->{lowlevel} = 1;
+	}
+
+	if ($opt->{options}) {
+		$opt->{shortoptions} = 1;
+		$opt->{fulloptions} = 1;
+	}
+
+	if ($opt->{complete}) {
+		$opt->{porcelain} = 1;
+		$opt->{lowlevel} = 1;
+		$opt->{fulloptions} = 1;
+		$opt->{recursive} = 1;
+	}
+
+	my $any = 0;
+
+	for my $name (qw(porcelain lowlevel shortoptions fulloptions)) {
+		if ($opt->{$name}) {
+			$any = 1;
+			last;
+		}
+	}
+
+	$opt->{porcelain} = 1 unless $any;
+
+	return wantarray ? ($opt, @ARGV) : $opt;
+}
+
+use constant OPTIONS     => 1;
+use constant HL_COMMANDS => 2;
+use constant LL_COMMANDS => 3;
+
+sub extract_options {
+	my ($opt, $line, $options) = @_;
+
+	if ($line =~ /^[ ]{7}(-.*)/) {
+		my $text = $1;
+
+		while ($text =~ /-\w|--\w[\w-]*/g) {
+			my $option = $&;
+
+			if (($opt->{shortoptions} and $option =~ /^-\w$/) or
+					($opt->{fulloptions} and $option =~ /^--/)) {
+				$options->{$option} = 1;
+			}
+		}
+	}
+}
+
+sub print_commands {
+	my ($opt, $line, $options, $target) = @_;
+
+	if ($opt->{man}) {
+		if ($line =~ /^[ ]{7}(\w[\w-]*)\(1\)$/) {
+			my $entry = $1;
+
+			if (($opt->{porcelain} and $target == HL_COMMANDS) or
+					($opt->{lowlevel} and $target == LL_COMMANDS)) {
+				print "$entry\n";
+			}
+
+			if ($opt->{recursive}) {
+				read_man($opt, $entry, $options);
+			}
+		}
+	} else {
+		if ($line =~ /^[ ]{7}git-(\w[\w-]*)\(1\)$/) {
+			my $cmd = $1;
+
+			if (($opt->{porcelain} and $target == HL_COMMANDS) or
+					($opt->{lowlevel} and $target == LL_COMMANDS)) {
+				print "$cmd\n";
+			}
+
+			if ($opt->{recursive}) {
+				read_man($opt, "git-$cmd", $options);
+			}
+		}
+	}
+}
+
+sub read_man {
+	my ($opt, $entry, $options) = @_;
+	my $target = 0;
+
+	my $man;
+	open $man, "man $entry |" or die "man $entry: $!";
+
+	while (my $line = <$man>) {
+		$line =~ s/.\x08//g; # Remove backspaces
+
+		if ($line =~ /^\w/) {
+			if ($line =~ /^OPTIONS/) {
+				$target = OPTIONS;
+			} else {
+				$target = 0;
+			}
+		} elsif ($target) {
+			if (($opt->{fulloptions} or $opt->{shortoptions}) and $target == OPTIONS) {
+				extract_options($opt, $line, $options);
+			}
+		}
+	}
+
+	close $man;
+}
+
+sub main {
+	my $opt = parse_args();
+	my $target = 0;
+	my $options = {};
+
+	my $any_options = ($opt->{shortoptions} || $opt->{fulloptions});
+
+	open MAN, "man git |" or die "man git: $!";
+
+	while (my $line = <MAN>) {
+		$line =~ s/.\x08//g; # Remove backspaces
+
+		if ($line =~ /^\w/) {
+			if ($any_options and $line =~ /^OPTIONS/) {
+				$target = OPTIONS;
+			} elsif (($any_options or $opt->{porcelain}) and $line =~ /^HIGH-LEVEL COMMANDS/) {
+				$target = HL_COMMANDS;
+			} elsif (($any_options or $opt->{lowlevel}) and $line =~ /^LOW-LEVEL COMMANDS/) {
+				$target = LL_COMMANDS;
+			} else {
+				$target = 0;
+			}
+		} elsif ($target) {
+			if ($any_options and $target == OPTIONS) {
+				extract_options($opt, $line, $options);
+			} elsif ((($any_options or $opt->{porcelain}) and $target == HL_COMMANDS) or
+					(($any_options or $opt->{lowlevel}) and $target == LL_COMMANDS)) {
+				print_commands($opt, $line, $options, $target);
+			}
+		}
+	}
+
+	close MAN;
+
+	if ($opt->{shortoptions} or $opt->{fulloptions}) {
+		print "$_\n" foreach sort keys %$options;
+	}
+}
+
+main();
