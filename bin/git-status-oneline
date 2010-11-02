@@ -1,0 +1,77 @@
+#!/usr/bin/perl -w
+use strict;
+
+use POSIX;
+
+use constant GRAY    => 30;
+use constant RED     => 31;
+use constant LIME    => 32;
+use constant YELLOW  => 33;
+use constant BLUE    => 34;
+use constant FUCHSIA => 35;
+use constant AQUA    => 36;
+use constant WHITE   => 37;
+
+sub color {
+	my ($text, $code) = @_;
+	return $code ne '' ? "\x1B\x5B".$code."m".$text."\x1B\x5B"."0m" : $text;
+	# Esc '[' $code 'm' $text Esc '[' 0 'm'
+}
+
+sub main {
+	my $branch = '';
+
+	if (open GIT, "git branch --no-color 2> /dev/null |") {
+		while (<GIT>) {
+			if (/^\*\s+(.*)$/) {
+				$branch = $1;
+				last;
+			}
+		}
+
+		close GIT;
+	}
+
+	my $br_color = $branch eq 'master' ? LIME : RED;
+	my $obj_color = YELLOW;
+	my $s1_color = LIME; # staged (added to the index)
+	my $s2_color = RED; # changed (different from the index)
+	my $s3_color = RED; # untracked
+
+	my $head = '';
+
+	if ($branch eq '') {
+		$branch = '(init)';
+		$br_color = YELLOW;
+	} else {
+		chomp($head = `git rev-parse HEAD 2> /dev/null | head -c 6`);
+	}
+
+	my @status = ();
+
+	if (open GIT, "git status --short 2> /dev/null |") {
+		while (<GIT>) {
+			if (/^(.)(.)\s(.*)$/) {
+				my ($s1, $s2, $file) = ($1, $2, $3);
+				my $status = '';
+
+				if ("$s1$s2" eq '??') {
+					$status = color('?', $s3_color);
+				} else {
+					$status .= color($s1, $s1_color) if $s1 ne ' ';
+					$status .= color($s2, $s2_color) if $s2 ne ' ';
+				}
+
+				push @status, " $status $file";
+			}
+		}
+
+		close GIT;
+	}
+
+	print '['.color($branch, $br_color).
+			($head ne '' ? (':'.color($head, $obj_color)) : '').
+			'] '.join(' ', @status)."\n";
+}
+
+main();
