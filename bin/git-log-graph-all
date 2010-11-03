@@ -1,5 +1,5 @@
 #!/bin/sh
 # Include all branches and any orphan commits (amended commits etc.)
 git-log-graph --all \
-	`git fsck --unreachable --no-reflogs | sed -n 's/^\w\w* commit //p'`
+	`git fsck --unreachable --no-reflogs | sed -n 's/^\w\w* commit //p'` \
 	"$@"
