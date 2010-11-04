@@ -1,0 +1,8 @@
+#!/bin/sh
+if [[ $# -lt 1 ]]; then
+	echo "usage: git-who <author>"
+	exit 1
+fi
+
+author=$1; shift
+git log -1 --format='%an <%ae>' --author="$author" "$@"
