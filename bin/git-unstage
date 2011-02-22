@@ -1,0 +1,7 @@
+#!/bin/sh
+# Ref: http://stackoverflow.com/questions/348170/undo-git-add
+if [[ `git rev-parse HEAD 2> /dev/null` = HEAD ]]; then
+	git rm --cached -r -f "$@"
+else
+	git reset "$@"
+fi
