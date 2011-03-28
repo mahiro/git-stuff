@@ -18,7 +18,20 @@ sub color {
 	# Esc '[' $code 'm' $text Esc '[' 0 'm'
 }
 
+sub summarize {
+	my ($summary) = @_;
+	my @items = ();
+
+	for my $status (sort keys %$summary) {
+		my $cnt = $summary->{$status};
+		push @items, " $status $cnt file".($cnt != 1 ? 's' : '');
+	}
+
+	return join(' ', @items);
+}
+
 sub main {
+	my $max_items = 8;
 	my $branch = '';
 
 	if (open GIT, "git branch --no-color 2> /dev/null |") {
@@ -48,6 +61,7 @@ sub main {
 	}
 
 	my @status = ();
+	my %summary = ();
 
 	if (open GIT, "git status --short 2> /dev/null |") {
 		while (<GIT>) {
@@ -63,6 +77,8 @@ sub main {
 				}
 
 				push @status, " $status $file";
+				$summary{$status} ||= 0;
+				$summary{$status}++;
 			}
 		}
 
@@ -71,7 +87,7 @@ sub main {
 
 	print '['.color($branch, $br_color).
 			($head ne '' ? (':'.color($head, $obj_color)) : '').
-			'] '.join(' ', @status)."\n";
+			'] '.(@status < $max_items ? join(' ', @status) : summarize(\%summary))."\n";
 }
 
 main();
