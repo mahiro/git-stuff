@@ -1,0 +1,3 @@
+#!/bin/sh
+git config remote.origin.receivepack `which git-receive-pack`
+git config remote.origin.uploadpack `which git-upload-pack`
