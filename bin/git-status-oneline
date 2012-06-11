@@ -76,6 +76,8 @@ sub main {
 					$status .= color($s2, $s2_color) if $s2 ne ' ';
 				}
 
+				$file =~ s/^.* -> //;
+
 				push @status, " $status $file";
 				$summary{$status} ||= 0;
 				$summary{$status}++;
